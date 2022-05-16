@@ -25,13 +25,12 @@ function canHandleRequest(request) {
   }
   return { _status: true, params: vals };
 }
-function handleRequest(request, response, contentType){
-  const theRequest=request;
-  const theResponse=response;
-
+function handleRequest(request, response, contentType) {
+  const theRequest = request;
+  const theResponse = response;
 
   if (!contentType) contentType = "application/json";
-  const canHandle =canHandleRequest.bind(this)(request);
+  const canHandle = canHandleRequest.bind(this)(request);
   if (!canHandle._status) throw "Invalid request";
   try {
     const params = JSON.parse(
@@ -49,7 +48,7 @@ function handleRequest(request, response, contentType){
 
     const proc =
       params.length > 0 ? this._func.apply(null, params) : this._func();
-      theResponse.writeHead(200, { "Content-Type": this._mime });
+    theResponse.writeHead(200, { "Content-Type": this._mime });
     if (proc instanceof StorageFile) {
       //is a storage file
       const chunkSize = 1800;
@@ -72,8 +71,10 @@ function handleRequest(request, response, contentType){
           }
         }
       });
-      const chunk=storage.read(proc.name, 0, chunkSize);
-      chunk.length==chunkSize?theResponse.write(chunk):theResponse.end(chunk);
+      const chunk = storage.read(proc.name, 0, chunkSize);
+      chunk.length == chunkSize
+        ? theResponse.write(chunk)
+        : theResponse.end(chunk);
     } else if (
       this._mime == "application.JSON" ||
       !(typeof proc === "string" || proc instanceof String)
@@ -97,16 +98,15 @@ function handleRequest(request, response, contentType){
 }
 
 const parent = {
-  calls: []
+  calls: [],
 };
 function HandleRequest(request, response) {
-  const theRequest=request;
-  const theResponse=response;
+  const theRequest = request;
+  const theResponse = response;
   for (var i = 0; i < parent.calls.length; i++) {
     const handler = parent.calls[i];
     const canHandle = canHandleRequest.bind(handler)(theRequest);
     if (canHandle._status) {
- 
       return handleRequest.bind(handler)(theRequest, theResponse);
     }
   }
@@ -222,9 +222,25 @@ const mimeTypes = {
 };
 
 module.exports = function (path, func, mime) {
-  if(!parent.handleRequest)parent.handleRequest=HandleRequest;
-  
-  this.server=parent.server;
+  if (!parent.handleRequest) parent.handleRequest = HandleRequest;
+  if (func == undefined) {
+    if (
+      path instanceof StorageFile &&
+      storage.read(path.name, 0, 100) != undefined
+    ) {
+      func = path;
+      path = "/" + func.name;
+    } else if (
+      path instanceof String &&
+      storage.read(path, 0, 100) != undefined
+    ) {
+      func = storage.open(path, "r");
+      path = "/" + path;
+    } else {
+      throw `illegal rest relax configuration:${path}`;
+    }
+  }
+  this.server = parent.server;
   if (func instanceof StorageFile) {
     const theFile = func;
     const ending =
@@ -240,9 +256,11 @@ module.exports = function (path, func, mime) {
       ? mimeTypes[ending]
       : "application/json";
     const restCall = new RestRelax(path, func, mime);
-    restCall.globalHandler=parent.handleRequest;
-    restCall.listen=(port)=>{http.createServer(HandleRequest).listen(port);}
-    restCall.server=parent.server;
+    restCall.globalHandler = parent.handleRequest;
+    restCall.listen = (port) => {
+      http.createServer(HandleRequest).listen(port);
+    };
+    restCall.server = parent.server;
     parent.calls.push(restCall);
     return restCall;
   } else {
@@ -251,9 +269,11 @@ module.exports = function (path, func, mime) {
       func,
       mime ? mime : "application/json"
     );
-    restCall.server=parent.server;
-    restCall.listen=(port)=>{http.createServer(HandleRequest).listen(port);}
-    restCall.globalHandler=parent.handleRequest;
+    restCall.server = parent.server;
+    restCall.listen = (port) => {
+      http.createServer(HandleRequest).listen(port);
+    };
+    restCall.globalHandler = parent.handleRequest;
     parent.calls.push(restCall);
     return restCall;
   }
